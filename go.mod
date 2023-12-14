@@ -1,4 +1,4 @@
-module github.com/libdns/template
+module github.com/libdns/acmeproxy
 
 go 1.18
 
