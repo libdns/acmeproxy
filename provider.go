@@ -98,7 +98,7 @@ func (p *Provider) doAction(ctx context.Context, endpoint *url.URL, action strin
 		}
 
 		if respMsg.FQDN != libdns.AbsoluteName(record.Name, zone) {
-			return libdns.Record{}, fmt.Errorf("ACMEProxy provider received unexpected FQDN %q", respMsg.FQDN)
+			return libdns.Record{}, fmt.Errorf("ACMEProxy provider received unexpected FQDN %q expected %q", respMsg.FQDN, libdns.AbsoluteName(record.Name, zone))
 		}
 
 		if respMsg.Value != record.Value {
