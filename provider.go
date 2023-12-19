@@ -145,9 +145,9 @@ func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record
 }
 
 // AppendRecords adds records to the zone. It returns the records that were added.
-// This is not supported by the ACMEProxy provider.
+// It does the same as SetRecords.
 func (p *Provider) AppendRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
-	return nil, fmt.Errorf("ACMEProxy provider does not support appending records")
+	return p.SetRecords(ctx, zone, records)
 }
 
 // SetRecords sets the records in the zone, either by updating existing records or creating new ones.
