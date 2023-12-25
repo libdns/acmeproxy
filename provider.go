@@ -18,8 +18,8 @@ type HTTPClient interface {
 }
 
 type acmeProxy struct {
-	FQDN  string `json:"FQDN"`
-	Value string `json:"Value"`
+	FQDN  string `json:"fqdn"`
+	Value string `json:"value"`
 }
 
 // Credentials represents the username and password required for authentication.
