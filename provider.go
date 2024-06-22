@@ -48,7 +48,7 @@ func (p *Provider) getClient() HTTPClient {
 	return p.HTTPClient
 }
 
-func (p *Provider) doAction(ctx context.Context, endpoint *url.URL, action string, zone string, record libdns.Record) (libdns.Record, error) {
+func (p *Provider) doAction(ctx context.Context, endpoint *url.URL, _ string, zone string, record libdns.Record) (libdns.Record, error) {
 	// We only support TXT records
 	if record.Type != "TXT" {
 		return libdns.Record{}, fmt.Errorf("ACMEProxy provider only supports TXT records")
