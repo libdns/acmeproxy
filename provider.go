@@ -50,26 +50,29 @@ func (p *Provider) getClient() HTTPClient {
 
 func (p *Provider) doAction(ctx context.Context, endpoint *url.URL, _ string, zone string, record libdns.Record) (libdns.Record, error) {
 	// We only support TXT records
-	if record.Type != "TXT" {
-		return libdns.Record{}, fmt.Errorf("ACMEProxy provider only supports TXT records")
+	if record.RR().Type != "TXT" {
+		return nil, fmt.Errorf("ACMEProxy provider only supports TXT records")
 	}
+
+	txtName := record.RR().Name
+	txtValue := record.RR().Data
 
 	// Create Request Body
 	reqBody := new(bytes.Buffer)
 	{
 		msg := acmeProxy{
-			FQDN:  libdns.AbsoluteName(record.Name, zone),
-			Value: record.Value,
+			FQDN:  libdns.AbsoluteName(txtName, zone),
+			Value: txtValue,
 		}
 		if err := json.NewEncoder(reqBody).Encode(msg); err != nil {
-			return libdns.Record{}, fmt.Errorf("ACMEProxy provider could not marshal JSON: %w", err)
+			return nil, fmt.Errorf("ACMEProxy provider could not marshal JSON: %w", err)
 		}
 	}
 
 	// Create Request
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), reqBody)
 	if err != nil {
-		return libdns.Record{}, fmt.Errorf("ACMEProxy provider could not create request: %w", err)
+		return nil, fmt.Errorf("ACMEProxy provider could not create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
@@ -82,36 +85,34 @@ func (p *Provider) doAction(ctx context.Context, endpoint *url.URL, _ string, zo
 	// Send Request
 	resp, err := p.getClient().Do(req)
 	if err != nil {
-		return libdns.Record{}, fmt.Errorf("ACMEProxy provider could not send request: %w", err)
+		return nil, fmt.Errorf("ACMEProxy provider could not send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Validate Response
 	{
 		if resp.StatusCode != http.StatusOK {
-			return libdns.Record{}, fmt.Errorf("ACMEProxy provider received status code %d", resp.StatusCode)
+			return nil, fmt.Errorf("ACMEProxy provider received status code %d", resp.StatusCode)
 		}
 
 		var respMsg acmeProxy
 		if err := json.NewDecoder(resp.Body).Decode(&respMsg); err != nil {
-			return libdns.Record{}, fmt.Errorf("ACMEProxy provider could not unmarshal JSON: %w", err)
+			return nil, fmt.Errorf("ACMEProxy provider could not unmarshal JSON: %w", err)
 		}
 
-		if respMsg.FQDN != libdns.AbsoluteName(record.Name, zone) {
-			return libdns.Record{}, fmt.Errorf("ACMEProxy provider received unexpected FQDN %q expected %q", respMsg.FQDN, libdns.AbsoluteName(record.Name, zone))
+		if respMsg.FQDN != libdns.AbsoluteName(txtName, zone) {
+			return nil, fmt.Errorf("ACMEProxy provider received unexpected FQDN %q expected %q", respMsg.FQDN, libdns.AbsoluteName(txtName, zone))
 		}
 
-		if respMsg.Value != record.Value {
-			return libdns.Record{}, fmt.Errorf("ACMEProxy provider received unexpected Value %q", respMsg.Value)
+		if respMsg.Value != txtValue {
+			return nil, fmt.Errorf("ACMEProxy provider received unexpected Value %q", respMsg.Value)
 		}
 	}
 
-	return libdns.Record{
-		ID:    record.ID,
-		Type:  "TXT",
-		Name:  record.Name,
-		Value: record.Value,
-		TTL:   record.TTL,
+	return libdns.TXT{
+		Name: txtName,
+		Text: txtValue,
+		TTL:  record.RR().TTL,
 	}, nil
 }
 
@@ -130,7 +131,7 @@ func (p *Provider) doActions(ctx context.Context, action string, zone string, re
 	for _, record := range records {
 		completedRecord, err := p.doAction(ctx, endpoint, action, zone, record)
 		if err != nil {
-			return completedRecords, fmt.Errorf("ACMEProxy provider could not %s record %q: %w", action, record.Name, err)
+			return completedRecords, fmt.Errorf("ACMEProxy provider could not %s record %q: %w", action, record.RR().Name, err)
 		}
 		// Add Record to completed set
 		completedRecords = append(completedRecords, completedRecord)
