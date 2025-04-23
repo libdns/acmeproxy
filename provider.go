@@ -50,19 +50,21 @@ func (p *Provider) getClient() HTTPClient {
 
 func (p *Provider) doAction(ctx context.Context, endpoint *url.URL, _ string, zone string, record libdns.Record) (libdns.Record, error) {
 	// We only support TXT records
-	if record.RR().Type != "TXT" {
+	rawRec, err := record.RR().Parse()
+	if err != nil {
+		return nil, fmt.Errorf("ACMEProxy provider could not parse record: %w", err)
+	}
+	txtRecord, ok := rawRec.(libdns.TXT)
+	if !ok {
 		return nil, fmt.Errorf("ACMEProxy provider only supports TXT records")
 	}
-
-	txtName := record.RR().Name
-	txtValue := record.RR().Data
 
 	// Create Request Body
 	reqBody := new(bytes.Buffer)
 	{
 		msg := acmeProxy{
-			FQDN:  libdns.AbsoluteName(txtName, zone),
-			Value: txtValue,
+			FQDN:  libdns.AbsoluteName(txtRecord.Name, zone),
+			Value: txtRecord.Text,
 		}
 		if err := json.NewEncoder(reqBody).Encode(msg); err != nil {
 			return nil, fmt.Errorf("ACMEProxy provider could not marshal JSON: %w", err)
@@ -100,20 +102,16 @@ func (p *Provider) doAction(ctx context.Context, endpoint *url.URL, _ string, zo
 			return nil, fmt.Errorf("ACMEProxy provider could not unmarshal JSON: %w", err)
 		}
 
-		if respMsg.FQDN != libdns.AbsoluteName(txtName, zone) {
-			return nil, fmt.Errorf("ACMEProxy provider received unexpected FQDN %q expected %q", respMsg.FQDN, libdns.AbsoluteName(txtName, zone))
+		if respMsg.FQDN != libdns.AbsoluteName(txtRecord.Name, zone) {
+			return nil, fmt.Errorf("ACMEProxy provider received unexpected FQDN %q expected %q", respMsg.FQDN, libdns.AbsoluteName(txtRecord.Name, zone))
 		}
 
-		if respMsg.Value != txtValue {
+		if respMsg.Value != txtRecord.Text {
 			return nil, fmt.Errorf("ACMEProxy provider received unexpected Value %q", respMsg.Value)
 		}
 	}
 
-	return libdns.TXT{
-		Name: txtName,
-		Text: txtValue,
-		TTL:  record.RR().TTL,
-	}, nil
+	return txtRecord, nil
 }
 
 func (p *Provider) doActions(ctx context.Context, action string, zone string, records []libdns.Record) ([]libdns.Record, error) {
